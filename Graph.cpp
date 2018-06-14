@@ -6,9 +6,26 @@
 #include <algorithm>
 #include <chrono>
 #include <ctime>
+#include <fstream>
 
 Graph::Graph(int size) : _size(size) {
 	init();
+}
+
+Graph::Graph(double** adj, int size) : adjMat(adj), _size(size) {
+	for (int i = 0; i < _size; i++) {
+		unvisited.insert(i);
+		int minDist = INT_MAX;
+		int idx = -1;
+		for (int j = 0; j < _size; j++) {
+				// initializing closest neighbors vector too for future optimizations
+			if (adjMat[i][j] < minDist) {
+				minDist = adjMat[i][j];
+				idx = j;
+			}
+		}
+		closestNeighbors.push_back(std::make_pair(idx, minDist));
+	}
 }
 
 Graph::~Graph() {
@@ -18,26 +35,39 @@ Graph::~Graph() {
 	delete[] adjMat;
 }
 
+void Graph::writeCoords(const char* filename) {
+	std::ofstream outfile;
+	outfile.open(filename);
+	outfile << _size << std::endl;
+	for (int i = 0; i < _size; i++) {
+		outfile << coords[i].first << " " << coords[i].second << std::endl;
+	}
+	outfile.close();
+}
+
 void Graph::init() {
 //	std::cout << "begin init" << std::endl;
 	srand(time(NULL));
-	std::vector< std::pair<int, int> > coords;
+//	std::vector< std::pair<int, int> > coords;
 
 	adjMat = new double*[_size];
 	for (int i = 0; i < _size; i++) {
 		// create an array at i and create a new coordinate for the graph
 		adjMat[i] = new double[_size];
-		int x = rand() % 100;
-		int y = rand() % 100;
+		int x = rand() % 1000;
+		int y = rand() % 1000;
 //		std::cout << "rand nums: " << x << ", " << y << std::endl;
 		coords.push_back(std::make_pair(x, y));
 		unvisited.insert(i);
 	}
+
+	/*
 	if (coords[0].first > 100 || coords[0].first < 0 || coords[0].second > 99 || 
 			coords[0].second < 0) {
 		// something got fucked up somehow
 		coords[0] = std::make_pair(rand() % 100, rand() % 100);
 	}
+	*/
 	/*
 	int count = 0;
 	for (std::pair<int, int> p : coords) {
@@ -80,6 +110,7 @@ double Graph::dist(int i, int j) {
 }
 
 void Graph::printMatrix() {
+	std::cout << "adjacency matrix" << std::endl;
 	for (int i = 0; i < _size; i++) {
 		for (int j = 0; j < _size; j++) {
 			std::cout << adjMat[i][j] << "\t";
@@ -199,7 +230,6 @@ std::pair<double, std::vector<int> > Graph::randomPath(int iterations = 100) {
 
 	for (int iter = 0; iter < iterations; iter++) {
 		std::vector<int> path;
-		double distance = 0;
 
 		// create an ordered vector and shuffle it
 		for (int i = 0; i < _size; i++) {
@@ -208,20 +238,13 @@ std::pair<double, std::vector<int> > Graph::randomPath(int iterations = 100) {
 
 		std::random_shuffle(path.begin(), path.end());
 
-		// find the distance
-		for (int i = 1; i < path.size(); i++) {
-			distance += adjMat[path[i]][path[i - 1]];
-		}
-
-		// connect the beginning and end of the path
-		distance += adjMat[path[0]][path[path.size() - 1]];
+		double distance = getPathLength(path);
 
 		if (distance < minDistance) {
 			minDistance = distance;
 			bestPath = path;
 		}
 	}
-	// we need to connect the final points
 
 	return std::make_pair(minDistance, bestPath);
 }
@@ -231,19 +254,61 @@ std::pair<double, std::vector<int> > Graph::greedyPath() {
 	std::vector<int> path;
 	path.push_back(0);
 	visited.insert(0);
-	double distance = 0;
 
 	while (path.size() < _size) {
 		path.push_back(getClosestNode(path[path.size() - 1]));
 		visited.insert(path[path.size() - 1]);
 	}
 
-	for (int i = 1; i < path.size(); i++) {
-		distance += adjMat[path[i]][path[i - 1]];
-	}
-	distance += adjMat[path[0]][path[path.size() - 1]];
+	double distance = getPathLength(path);
 
 	cleanup();
 
 	return std::make_pair(distance, path);
 }
+
+double Graph::getPathLength(std::vector<int>& path) {
+	double dist = 0;
+	for (int i = 1; i < path.size(); i++) {
+		dist += adjMat[path[i]][path[i - 1]];
+	}
+	dist += adjMat[path[0]][path[path.size() - 1]];
+	return dist;
+}
+
+std::pair<double, std::vector<int> > Graph::simulatedAnneal(int iterations, double rate) {
+	std::pair<double, std::vector<int> > path = greedyPath();
+	double distance = path.first;
+//	std::cout << distance << std::endl;
+	double temperature = 0.95;
+	int count = 0;
+
+	while (temperature > 0.00001) {
+		for (int i = 0; i < iterations; i++) {
+			// generate an edge swap
+			std::vector<int> tempPath = path.second;
+			std::pair<int, int> nodes = std::make_pair(rand() % path.second.size(), 
+					rand() % path.second.size());
+			int temp = tempPath[nodes.first];
+			tempPath[nodes.first] = tempPath[nodes.second];
+			tempPath[nodes.second] = temp;
+
+			double tempDist = getPathLength(tempPath);
+
+			double p = 2.71828 * (distance - tempDist) / temperature;
+			if (p > (double)rand() / RAND_MAX) {
+				path.second = tempPath;
+				distance = tempDist;
+				count++;
+			}
+		}
+
+		temperature *= rate;
+//		std::cout << '\r' << std::setfill('0') << "t = " << temperature;
+	}
+//	std::cout << distance << std::endl;
+	std::cout << "num changes: " << count << std::endl;
+
+	return std::make_pair(distance, path.second);
+}
+

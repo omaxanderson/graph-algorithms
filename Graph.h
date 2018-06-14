@@ -9,13 +9,16 @@ class Graph {
 	public:
 		// Public member functions
 		Graph(int);
+		Graph(double**, int);
 		~Graph();
 		double dist(int, int);
 		void printMatrix();
+		void writeCoords(const char* filename);
 		double minimumSpanningTree();
 		std::pair<double, std::vector<int> > randomPath(int);
 		std::pair<double, std::vector<int> > greedyPath();
-		
+		std::pair<double, std::vector<int> > simulatedAnneal(int, double);
+		double getPathLength(std::vector<int>&);
 
 	private:
 		// internal helper functions
@@ -28,6 +31,7 @@ class Graph {
 		std::unordered_set<int> visited;
 		std::unordered_set<int> unvisited;
 		std::vector< std::pair<int, double> > closestNeighbors;
+		std::vector< std::pair<int, int> > coords;
 		int _size;
 		double** adjMat;
 };
