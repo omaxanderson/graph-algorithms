@@ -1,6 +1,7 @@
 #include "helpers.h"
 #include "Graph.h"
 #include <vector>
+#include <algorithm>
 #include <utility>
 #include <iostream>
 #include <algorithm>
@@ -36,6 +37,7 @@ Graph::~Graph() {
 }
 
 void Graph::writeCoords(const char* filename) {
+	std::cout << "Writing coordinates to '" << filename << "'." << std::endl;
 	std::ofstream outfile;
 	outfile.open(filename);
 	outfile << _size << std::endl;
@@ -276,27 +278,96 @@ double Graph::getPathLength(std::vector<int>& path) {
 	return dist;
 }
 
+void neighbor1(std::vector<int>& path) {
+	int a = rand() % path.size();
+	int b = rand() % path.size();
+	int temp = path[a];
+	path[a] = path[b];
+	path[b] = temp;
+}
+
+void neighbor2(std::vector<int>& path) {
+	int a = rand() % path.size();
+	int b = rand() % path.size();
+	if (a > b) {
+		// swap elements
+		int range = (path.size() - a + b + 1) / 2;
+		for (int i = 0; i < range; i++) {
+			if (a == path.size()) {
+				a = 0;
+			}
+			if (b < 0) {
+				b = path.size() - 1;
+			}
+			std::iter_swap(path.begin() + a++, path.begin() + b--);
+		}
+	} else {
+		std::reverse(path.begin() + a, path.begin() + b + 1);
+	}
+}
+
+void neighbor3(std::vector<int>& path) {
+	int a = rand() % path.size();
+	if (a == path.size() - 1) {
+		std::iter_swap(path.begin(), path.begin() + a);
+	} else {
+		std::iter_swap(path.begin() + a, path.begin() + a + 1);
+	}
+}
+
 std::pair<double, std::vector<int> > Graph::simulatedAnneal(int iterations, double rate) {
 	std::pair<double, std::vector<int> > path = greedyPath();
 	double distance = path.first;
 //	std::cout << distance << std::endl;
 	double temperature = 0.95;
 	int count = 0;
+	int improve = 0;
+	int worsen = 0;
 
 	while (temperature > 0.00001) {
 		for (int i = 0; i < iterations; i++) {
 			// generate an edge swap
 			std::vector<int> tempPath = path.second;
-			std::pair<int, int> nodes = std::make_pair(rand() % path.second.size(), 
-					rand() % path.second.size());
+		//	std::pair<int, int> nodes = std::make_pair(rand() % path.second.size(), 
+		//			rand() % path.second.size());
+			if (temperature > 0.4) {
+				if (i % 2) {
+					neighbor1(tempPath);
+				} else {
+					neighbor2(tempPath);
+				}
+			} else {
+				if (i % 2) {
+					neighbor3(tempPath);
+				} else if (i < iterations / 2) {
+					neighbor2(tempPath);
+				} else {
+					neighbor1(tempPath);
+				}
+			}
+
+
+			/*
 			int temp = tempPath[nodes.first];
 			tempPath[nodes.first] = tempPath[nodes.second];
 			tempPath[nodes.second] = temp;
+			*/
 
+			// this is the expensive part
 			double tempDist = getPathLength(tempPath);
 
-			double p = 2.71828 * (distance - tempDist) / temperature;
+
+			double p = std::pow(2.71828, (distance - tempDist) / temperature);
+//			double p = 2.71828 * gain / temperature;
 			if (p > (double)rand() / RAND_MAX) {
+				if (tempDist < distance) {
+					std::cout << "New Minimum: " << tempDist << std::endl;
+				}
+				if (tempDist < distance) {
+					improve++;
+				} else {
+					worsen++;
+				}
 				path.second = tempPath;
 				distance = tempDist;
 				count++;
@@ -304,10 +375,10 @@ std::pair<double, std::vector<int> > Graph::simulatedAnneal(int iterations, doub
 		}
 
 		temperature *= rate;
-//		std::cout << '\r' << std::setfill('0') << "t = " << temperature;
 	}
-//	std::cout << distance << std::endl;
 	std::cout << "num changes: " << count << std::endl;
+	std::cout << "improvements: " << improve << std::endl;
+	std::cout << "downgrades: " << worsen << std::endl;
 
 	return std::make_pair(distance, path.second);
 }

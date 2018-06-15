@@ -4,6 +4,7 @@
 #include <vector>
 #include <utility>
 #include <cmath>
+#include <fstream>
 
 bool verbose = false;
 bool debug = false;
@@ -12,6 +13,9 @@ int main(int argc, char* argv[]) {
 	int numVertices = 10;
 	int numAnnealIter = 1000;
 	double rate = 0.99;
+	const char* outfileName = "coords1.txt";
+	const char* resultsName = "results1.txt";
+
 	if (argc > 1) {
 		numVertices = std::stoi(argv[1]);
 	}
@@ -20,6 +24,12 @@ int main(int argc, char* argv[]) {
 	}
 	if (argc > 3) {
 		rate = std::stod(argv[3]);
+	}
+	if (argc > 4) {
+		outfileName = argv[4];
+	}
+	if (argc > 5) {
+		resultsName = argv[5];
 	}
 	/*
 	if (argc > 2) {
@@ -37,14 +47,23 @@ int main(int argc, char* argv[]) {
 	if (numVertices < 12) {
 		graph->printMatrix();
 	}
-	const char* outfileName = "testoutfile.txt";
 	graph->writeCoords(outfileName);
 	std::cout << "done initializing" << std::endl;
 	std::cout << "Minimum: " << graph->minimumSpanningTree() << std::endl;
 	std::cout << "Random: " << graph->randomPath(2000).first << std::endl;
 	std::pair<double, std::vector<int> > greedy = graph->greedyPath();
 	std::cout << "Greedy: " << greedy.first << std::endl;
-	std::cout << "Simulated Annealing: " << graph->simulatedAnneal(numAnnealIter, rate).first << std::endl;
+	std::pair<double, std::vector<int> > simulated = graph->simulatedAnneal(numAnnealIter, rate);
+	std::cout << "Simulated Annealing: " << simulated.first << std::endl;
+
+	std::cout << "Writing results to '" << resultsName << "'." << std::endl;
+	std::ofstream resultsFile;
+	resultsFile.open(resultsName);
+	for (int i = 1; i < simulated.second.size(); i++) {
+		resultsFile << simulated.second[i - 1] << " " << simulated.second[i] << std::endl;
+	}
+	resultsFile.close();
+
 
 	/*
 	// ******************  testing *******************
